@@ -1,9 +1,9 @@
-import { router } from "expo-router";
+import { authService } from "@/services/authService";
+import { Link, router } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -11,165 +11,102 @@ import {
   View,
 } from "react-native";
 
-export default function LoginScreen() {
+export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleLogin = () => {
-    if (!email || !password) {
-      setError("Please fill in all fields");
+  const signInWithEmail = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Missing Fields", "Please enter your email and password.");
       return;
     }
 
     setLoading(true);
-    setError("");
-    router.replace("/(app/)/home");
+    try {
+      await authService.signIn(email, password);
+      router.replace("/(app/)/home");
+    } catch (error: any) {
+      Alert.alert("Login Error", error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.inner}>
-        <View style={styles.headerSection}>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
-        </View>
+    <View style={styles.container}>
+      <Text style={styles.title}>Welcome Back</Text>
 
-        <View style={styles.formSection}>
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        placeholderTextColor="#94A3B8"
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        placeholderTextColor="#94A3B8"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="you@example.com"
-              placeholderTextColor="#475569"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={signInWithEmail}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Log In</Text>
+        )}
+      </TouchableOpacity>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••"
-              placeholderTextColor="#475569"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity onPress={() => router.push("/signup")}>
-          <Text style={styles.footerText}>
-            Don't have an account?{" "}
-            <Text style={styles.footerLink}>Sign up</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      <Link href="/signup" style={styles.link}>
+        Don't have an account? Sign up
+      </Link>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 20,
+    justifyContent: "center",
     backgroundColor: "#0F172A",
-  },
-  inner: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 40,
-    justifyContent: "space-between",
-  },
-  headerSection: {
-    gap: 8,
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#94A3B8",
-  },
-  formSection: {
-    gap: 20,
-  },
-  errorBox: {
-    backgroundColor: "#450A0A",
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#7F1D1D",
-  },
-  errorText: {
-    color: "#FCA5A5",
-    fontSize: 14,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  label: {
-    color: "#CBD5E1",
-    fontSize: 14,
-    fontWeight: "500",
+    color: "#fff",
+    marginBottom: 40,
+    textAlign: "center",
   },
   input: {
     backgroundColor: "#1E293B",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: "#FFFFFF",
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#334155",
+    color: "#fff",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
   },
-  primaryButton: {
+  button: {
     backgroundColor: "#6366F1",
-    paddingVertical: 16,
-    borderRadius: 14,
+    padding: 15,
+    borderRadius: 10,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 10,
   },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  footerText: {
-    color: "#94A3B8",
-    fontSize: 15,
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  link: {
+    color: "#818CF8",
     textAlign: "center",
-  },
-  footerLink: {
-    color: "#6366F1",
-    fontWeight: "600",
+    marginTop: 20,
+    fontSize: 14,
   },
 });

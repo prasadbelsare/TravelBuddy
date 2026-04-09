@@ -1,13 +1,39 @@
-import { useRouter } from "expo-router";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Redirect, useRouter } from "expo-router";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useAuth } from "../context/AuthContext"; // Import your context
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { user, initialized } = useAuth();
+
+  // Show a blank screen or spinner while checking local storage
+  if (!initialized) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
+    );
+  }
+
+  // If they are already logged in, skip onboarding and go straight to the app
+  if (user) {
+    return <Redirect href="/(app/)/home" />;
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.heroSection}>
-        <Text style={styles.emoji}>✈️</Text>
         <Text style={styles.title}>Travel Buddy</Text>
         <Text style={styles.subtitle}>
           Upload your flight ticket and we'll guide you through the entire
@@ -49,9 +75,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  emoji: {
-    fontSize: 72,
-  },
+
   title: {
     fontSize: 36,
     fontWeight: "bold",

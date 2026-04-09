@@ -1,5 +1,11 @@
+import { authService } from "@/services/authService";
+import { tripService } from "@/services/tripService";
+import { Trip } from "@/types";
+import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
+import { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   StyleSheet,
   Text,
@@ -7,96 +13,137 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-const mockTrips = [
-  {
-    id: "1",
-    from: "Mumbai",
-    to: "Dubai",
-    date: "15 Mar 2024",
-    flight: "AI 302",
-    status: "upcoming",
-  },
-  {
-    id: "2",
-    from: "Dubai",
-    to: "London",
-    date: "22 Mar 2024",
-    flight: "EK 004",
-    status: "upcoming",
-  },
-  {
-    id: "3",
-    from: "London",
-    to: "New York",
-    date: "01 Apr 2024",
-    flight: "BA 117",
-    status: "completed",
-  },
-];
 
 export default function HomeScreen() {
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("");
+
+  useFocusEffect(
+    useCallback(() => {
+      loadTrips();
+      loadUser();
+    }, []),
+  );
+
+  const loadUser = async () => {
+    try {
+      const user = await authService.getCurrentUser();
+      if (user?.user_metadata?.first_name) {
+        setUserName(user.user_metadata.first_name);
+      } else if (user?.email) {
+        setUserName(user.email.split("@")[0]);
+      }
+    } catch (err) {
+      console.log("Load user error:", err);
+    }
+  };
+
+  const loadTrips = async () => {
+    setLoading(true);
+    try {
+      const data = await tripService.getTrips();
+      setTrips(data);
+    } catch (err) {
+      console.log("Load trips error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+      router.replace("/login");
+    } catch (err) {
+      console.log("Logout error:", err);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Good day 👋</Text>
-          <Text style={styles.name}>Traveller</Text>
+          <Text style={styles.greeting}>Welcome back</Text>
+          <Text style={styles.name}>{userName}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.uploadButton}
-          onPress={() => router.push("/(app/)/upload")}
-        >
-          <Text style={styles.uploadButtonText}>+ New Trip</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.uploadButton}
+            onPress={() => router.push("/(app/)/upload")}
+          >
+            <Text style={styles.uploadButtonText}>+ New Trip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Trip list */}
-      <FlatList
-        data={mockTrips}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <Text style={styles.sectionTitle}>Your Trips</Text>
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>🎫</Text>
-            <Text style={styles.emptyTitle}>No trips yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Upload your first flight ticket to get started
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.tripCard}
-            onPress={() => router.push(`/(app/)/trip/${item.id}`)}
-          >
-            {/* Route */}
-            <View style={styles.routeRow}>
-              <Text style={styles.city}>{item.from}</Text>
-              <Text style={styles.arrow}>→</Text>
-              <Text style={styles.city}>{item.to}</Text>
-            </View>
-
-            {/* Details */}
-            <View style={styles.detailsRow}>
-              <Text style={styles.detailText}>✈️ {item.flight}</Text>
-              <Text style={styles.detailText}>📅 {item.date}</Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  item.status === "completed" && styles.statusCompleted,
-                ]}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text style={styles.loadingText}>Loading your trips...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={trips}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <Text style={styles.sectionTitle}>Your Trips ({trips.length})</Text>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No trips yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Upload your first flight ticket to get started
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={() => router.push("/(app/)/upload")}
               >
-                <Text style={styles.statusText}>{item.status}</Text>
-              </View>
+                <Text style={styles.emptyButtonText}>Upload Ticket</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        )}
-      />
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.tripCard}
+              onPress={() =>
+                router.push({
+                  pathname: "/(app/)/trip/[id]",
+                  params: {
+                    id: item.id,
+                    allFlights: JSON.stringify(item.all_flights),
+                    savedInstructions: JSON.stringify(item.instructions),
+                  },
+                })
+              }
+            >
+              <View style={styles.routeRow}>
+                <Text style={styles.code}>{item.from_code}</Text>
+                <Text style={styles.arrow}>→</Text>
+                <Text style={styles.code}>{item.to_code}</Text>
+              </View>
+              <Text style={styles.routeCities}>
+                {item.from_city} to {item.to_city}
+              </Text>
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailText}>{item.departure_date}</Text>
+                <Text style={styles.detailText}>
+                  {item.all_flights?.length}{" "}
+                  {item.all_flights?.length === 1 ? "flight" : "flights"}
+                </Text>
+              </View>
+              <Text style={styles.routeOverview} numberOfLines={1}>
+                {item.route_overview}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -115,23 +162,43 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   greeting: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#94A3B8",
   },
   name: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#FFFFFF",
+    textTransform: "capitalize",
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
   },
   uploadButton: {
     backgroundColor: "#6366F1",
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
   },
   uploadButtonText: {
     color: "#FFFFFF",
     fontWeight: "600",
+    fontSize: 13,
+  },
+  logoutText: {
+    color: "#94A3B8",
+    fontSize: 13,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    color: "#94A3B8",
     fontSize: 14,
   },
   listContainer: {
@@ -152,15 +219,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#334155",
-    gap: 12,
+    gap: 8,
   },
   routeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
-  city: {
-    fontSize: 20,
+  code: {
+    fontSize: 22,
     fontWeight: "bold",
     color: "#FFFFFF",
   },
@@ -168,39 +235,29 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#6366F1",
   },
+  routeCities: {
+    fontSize: 13,
+    color: "#94A3B8",
+    marginTop: -4,
+  },
   detailsRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
+    gap: 16,
+    marginTop: 4,
   },
   detailText: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: "#64748B",
   },
-  statusBadge: {
-    backgroundColor: "#1D4ED8",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginLeft: "auto",
-  },
-  statusCompleted: {
-    backgroundColor: "#166534",
-  },
-  statusText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "capitalize",
+  routeOverview: {
+    fontSize: 12,
+    color: "#475569",
+    marginTop: 2,
   },
   emptyState: {
     alignItems: "center",
     marginTop: 80,
     gap: 12,
-  },
-  emptyEmoji: {
-    fontSize: 48,
   },
   emptyTitle: {
     fontSize: 20,
@@ -212,5 +269,17 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     textAlign: "center",
     lineHeight: 22,
+  },
+  emptyButton: {
+    backgroundColor: "#6366F1",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  emptyButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });
