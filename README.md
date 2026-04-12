@@ -36,7 +36,7 @@ An AI-powered app that transforms flight tickets into personalized, step-by-step
 ---
 
 ## 📂 Folder Structure
-
+```
 TravelBuddy/
 ├── app/                    # Screens
 │   ├── index.tsx           # Onboarding
@@ -55,7 +55,7 @@ TravelBuddy/
 ├── utils/supabase.ts
 ├── types/index.ts
 └── constants/index.ts
-
+```
 ## 🚀 Quick Start
 
 ### 1️⃣ Clone the Repository
