@@ -65,3 +65,14 @@ export type Trip = {
     departure_date: string;
     created_at: string;
 };
+export type Message = {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    timestamp: Date;
+};
+
+export type ConversationEntry = {
+    role: string;
+    content: string;
+};

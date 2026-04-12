@@ -30,23 +30,23 @@ export default function TripScreen() {
     setError("");
 
     try {
-      // SCENARIO 1: We are loading an existing trip from Supabase
+      // Loading an existing trip
       if (id && id !== "new") {
         const existingTrip = await tripService.getTripById(id as string);
         setFlights(existingTrip.all_flights);
         setInstructions(existingTrip.instructions);
       }
-      // SCENARIO 2: We just scanned a ticket and need to generate & save it
+      // New Trip
       else if (allFlights) {
         const parsedFlights: FlightDetails[] = JSON.parse(allFlights as string);
         setFlights(parsedFlights);
 
-        // 1. Generate the instructions via Groq
+        // Generate the instructions
         const generatedInstructions =
           await groqService.generateInstructions(parsedFlights);
         setInstructions(generatedInstructions);
 
-        // 2. Save the newly generated trip to Supabase
+        // 2. Save the trip to Supabase
         await tripService.saveTrip(parsedFlights, generatedInstructions);
       } else {
         setError("No flight data found.");
@@ -94,7 +94,7 @@ export default function TripScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backButton}>← Back</Text>
+          <Text style={styles.backButton}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Journey</Text>
         <TouchableOpacity onPress={() => router.push("/(app/)/home")}>
@@ -119,7 +119,7 @@ export default function TripScreen() {
               <Text style={styles.routeFlight}>
                 {flights.length} flight{flights.length > 1 ? "s" : ""}
               </Text>
-              <Text style={styles.routeArrow}>✈ ————</Text>
+              <Text style={styles.routeArrow}>- - - - -</Text>
             </View>
             <View style={styles.routeItem}>
               <Text style={styles.routeCode}>
@@ -293,14 +293,10 @@ export default function TripScreen() {
         <TouchableOpacity
           style={styles.chatButton}
           onPress={() => {
-            // Safely extract a single string value for the ID
-            const safeId = typeof id === "string" ? id : id?.[0];
-
             router.push({
               pathname: "/(app/)/chat/[id]",
               params: {
-                id: safeId && safeId !== "new" ? safeId : "new",
-                flightDetails: JSON.stringify(flight),
+                id: "new",
                 allFlights: JSON.stringify(flights),
               },
             });
