@@ -29,29 +29,24 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { flights, access_token } = body;
 
-    console.log("1. access_token exists:", !!access_token);
-    console.log("2. flights count:", flights?.length ?? "MISSING");
-
     if (!access_token) throw new Error("Missing access_token");
-    if (!flights || !Array.isArray(flights)) throw new Error("Missing or invalid flights array");
+    if (!flights || !Array.isArray(flights))
+      throw new Error("Missing or invalid flights array");
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: `Bearer ${access_token}` } } }
+      { global: { headers: { Authorization: `Bearer ${access_token}` } } },
     );
 
     const {
       data: { user },
       error: authError,
-    } = await supabaseClient.auth.getUser();
-
-    console.log("3. User:", user?.id ?? "NULL");
+    } = await supabaseClient.auth.getUser(access_token);
 
     if (authError || !user) throw new Error("Unauthorized");
 
     const { success } = await ratelimit.limit(user.id);
-    console.log("4. Rate limit success:", success);
 
     if (!success) {
       return new Response(
@@ -62,7 +57,7 @@ Deno.serve(async (req) => {
         {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -80,7 +75,7 @@ Deno.serve(async (req) => {
   Gate: ${f.gate || "check boards"}
   Seat: ${f.seat || "check boarding pass"}
   Class: ${f.class}
-  Baggage: ${f.baggage_allowance}`
+  Baggage: ${f.baggage_allowance}`,
       )
       .join("\n\n");
 
@@ -99,57 +94,57 @@ Deno.serve(async (req) => {
               role: "user",
               content: `You are a personal travel assistant writing a detailed, friendly, step-by-step airport journey guide.
 
-Total flights: ${flights.length}
+Total flights: \${flights.length}
 
 ALL FLIGHT LEGS:
-${flightSummary}
+\${flightSummary}
 
 Generate complete journey instructions covering EVERY flight leg above from start to finish.
 
 CRITICAL RULES FOR ACCURACY:
-- For EVERY transit airport determine whether immigration is required based on the specific country and airport
-- Delhi (DEL): International transit passengers must go through immigration and security again even if connecting
-- London Heathrow (LHR): Transit passengers must go through security again. Immigration only if leaving airside
-- Dubai (DXB): Airside transit only — no immigration needed but security check required
-- Doha (DOH): Airside transit — no immigration but security check required
-- US airports (any): ALL passengers including transit must go through immigration and customs and recheck bags
-- Schengen area airports: First entry into Schengen zone requires immigration regardless of final destination
-- If unsure about a specific airport always recommend the passenger to confirm with airline staff
-- NEVER say no security check needed for any transit — always recommend checking with airline
-- Always mention baggage rechecking rules for US transit
+- BAGGAGE & BOARDING PASSES: At the very first departure airport, explicitly instruct the user to submit all check-in baggage and request that it be checked through to the final destination (subject to customs rules). Instruct them to collect boarding passes for ALL connecting flights in the journey.
+- IMMIGRATION (FIRST PORT OF ENTRY RULE): Immigration and customs ALWAYS happen at the FIRST port of entry into the destination country or border-free region (like the Schengen zone), NOT necessarily the final destination. 
+  *(EXAMPLE: If a passenger flies from Country A -> Transit Country B -> Destination Country C (City 1) -> Destination Country C (City 2), immigration and baggage claim for customs happens at City 1. The subsequent City 1 -> City 2 flight is domestic, requiring no further immigration.)*
+- STRICT PLACEMENT RULE: You must place Immigration, Customs, and Security instructions ONLY in the JSON block for the specific airport where it physically happens. If immigration/customs happens at a transit airport, the 'immigration' array for THAT transit leg must contain the instructions, and the Final Destination 'immigration' array must be empty. Do not put transit instructions in the arrival leg.
+- US CUSTOMS RULE: For layovers at US airports (e.g., LAX, JFK, ORD) that serve as the first port of entry, you MUST explicitly instruct the passenger in THAT specific layover's leg to: 1. Clear US immigration, 2. Collect ALL checked bags at baggage claim, 3. Walk through customs, 4. Re-check bags at the domestic transfer baggage drop, and 5. Go through TSA security again for their domestic connection. Do not tell them their bags are through-checked.
+- DYNAMIC TRANSIT RULES: Analyze the specific transit airports provided in the flight data. Apply accurate, real-world transit rules for those specific airports (e.g., determining if airside transit without immigration is allowed, or if a transfer security re-check is mandatory, like at DOH or LHR). Ensure transit security instructions go into the 'security' array of that specific transit leg.
+- VISAS & TRANSIT VISAS (NO HALLUCINATIONS): Do NOT hallucinate visa information. If you do not have absolute, verifiable certainty about a visa rule, explicitly instruct the user: "Please confirm transit visa and entry visa requirements directly with your airline and the respective embassies." ALWAYS instruct the user to verify transit visa requirements for every layover country.
 
 Return ONLY a raw JSON object — no markdown, no code blocks, no extra text:
 {
-  "route_overview": "Full route showing all stops e.g. Mumbai (BOM) → Delhi (DEL) → London (LHR) → Salt Lake City (SLC)",
+  "route_overview": "Full route showing all stops e.g. Origin → Transit 1 → Transit 2 → Final Destination",
+  "live_travel_alerts": [
+    "Insert specific warnings based on the specific airports in the itinerary, or leave this array empty if none apply to the passenger's journey"
+  ],
   "general_precautions": [
     "Always keep your passport and all documents with you",
     "Keep your mobile phone fully charged",
     "Carry enough local currency or a travel card for each country"
   ],
   "visa_reminder": [
-    "Confirm you have a valid visa or travel authorisation for each country you are transiting or arriving in",
-    "Check if you need a transit visa for layover countries — rules differ per nationality",
-    "Verify your passport is valid for at least 6 months beyond your travel dates"
+    "Please confirm all entry visa and transit visa requirements directly with your airline and the respective embassies to ensure you have the correct information.",
+    "Check if you need a transit visa for your specific layover countries — rules differ strictly by nationality.",
+    "Verify your passport is valid for at least 6 months beyond your travel dates."
   ],
   "legs": [
     {
-      "airport": "Mumbai (BOM) — Departure",
+      "airport": "Airport Name (Code) — Departure/Transit/Arrival",
       "type": "departure",
       "instructions": [
-        "Arrive at the airport at least 3 hours before your departure",
-        "Connect to free airport WiFi on arrival",
-        "Get a trolley for your bags near the entrance",
-        "Look for your airline check-in counters",
-        "Drop off all check-in bags and collect ALL boarding passes for the entire journey if possible",
-        "Ask staff whether your bags are checked through to the final destination or need rechecking"
+        "Arrive at the airport at least 3 hours before your departure.",
+        "Look for your airline check-in counters.",
+        "Submit all your check-in baggage here at the starting point. Ask staff to check your bags through to your final destination, but be prepared to collect them at your first port of entry for customs.",
+        "Crucial: Request and collect the printed boarding passes for ALL of the flights in your journey right now.",
+        "Connect to free airport WiFi on arrival if needed."
       ],
       "security": [
-        "Proceed to security screening",
-        "Remove laptops and place in a separate tray",
-        "All liquids must be under 100ml and in a clear zip-lock bag",
-        "Remove belt watch and coins before going through scanner"
+        "Proceed to security screening.",
+        "Remove laptops and place in a separate tray.",
+        "All liquids must be under 100ml and in a clear zip-lock bag."
       ],
-      "immigration": [],
+      "immigration": [
+        "Proceed to outbound immigration and get your passport stamped for departure."
+      ],
       "flight_info": {
         "flight_number": "actual flight number from data",
         "route": "City → City",
@@ -160,36 +155,33 @@ Return ONLY a raw JSON object — no markdown, no code blocks, no extra text:
     }
   ],
   "final_arrival": [
-    "Proceed to immigration on landing",
-    "Have your passport and landing card ready",
-    "Collect your checked baggage from the carousel",
-    "Proceed through customs",
-    "Exit the arrivals hall"
+    "Proceed to the baggage claim area to collect your final checked baggage.",
+    "Exit the arrivals hall. Welcome to your final destination!"
   ],
   "connecting_tips": [
-    "Always follow Connecting Flights signs at every transit airport",
-    "If your connection time is under 90 minutes inform the cabin crew before landing",
-    "Keep all boarding passes safe throughout the journey",
-    "If you miss a connection go to your airline desk immediately"
+    "Always follow 'Connecting Flights' or 'Transit' signs at every layover airport.",
+    "If your connection time is under 90 minutes, inform the cabin crew before landing.",
+    "Keep all boarding passes safe throughout the entire journey.",
+    "If you miss a connection, go to your airline's transfer desk immediately."
   ]
 }
 
 IMPORTANT:
-- Generate a leg entry for EVERY airport in the journey including all transit stops
-- Use the CRITICAL RULES above for immigration and security accuracy
-- Make all instructions specific to the actual airlines and airports mentioned
-- Include actual flight numbers times and dates from the data
-- Be friendly and clear — write as if guiding someone who needs every detail explained`,
+- Generate a leg entry for EVERY airport in the journey including all transit stops.
+- Place instructions STRICTLY in the leg where the action occurs. (e.g., US Customs instructions belong in the first US layover leg, NOT the final domestic destination leg).
+- Populate the 'security' and 'immigration' arrays for transit legs if a security re-check or customs clearance is required there.
+- Make all instructions specific to the actual airlines and airports mentioned in the data.
+- Include actual flight numbers, times, and dates from the data.
+- Be friendly and clear — write as if guiding someone who needs every detail explained.`,
             },
           ],
           temperature: 0.3,
           max_tokens: 8192,
         }),
-      }
+      },
     );
 
     const groqData = await groqResponse.json();
-    console.log("5. Groq status:", groqResponse.status);
 
     if (!groqResponse.ok) {
       throw new Error(groqData.error?.message || "Groq API error");

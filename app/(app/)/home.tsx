@@ -1,11 +1,13 @@
 import { authService } from "@/services/authService";
 import { tripService } from "@/services/tripService";
 import { Trip } from "@/types";
+import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   StyleSheet,
   Text,
@@ -60,30 +62,50 @@ export default function HomeScreen() {
     }
   };
 
+  const confirmDelete = (tripId: string) => {
+    Alert.alert(
+      "Delete Itinerary",
+      "Are you sure you want to remove this trip?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await tripService.deleteTrip(tripId);
+              setTrips((prev) => prev.filter((t) => t.id !== tripId));
+            } catch (err) {
+              Alert.alert(
+                "Error",
+                "Could not delete flight. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Welcome back</Text>
+          <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.name}>{userName}</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.uploadButton}
-            onPress={() => router.push("/(app/)/upload")}
-          >
-            <Text style={styles.uploadButtonText}>+ New Trip</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
+          <TouchableOpacity onPress={handleLogout} style={styles.iconBtn}>
+            <Feather name="log-out" size={20} color="#94A3B8" />
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* TRIP LIST */}
       {loading ? (
-        <View style={styles.loadingContainer}>
+        <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
-          <Text style={styles.loadingText}>Loading your trips...</Text>
         </View>
       ) : (
         <FlatList
@@ -92,25 +114,36 @@ export default function HomeScreen() {
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={styles.sectionTitle}>Your Trips ({trips.length})</Text>
+            <View style={styles.listHeader}>
+              <Text style={styles.sectionTitle}>Your Itineraries</Text>
+              <TouchableOpacity
+                style={styles.newTripBtn}
+                onPress={() => router.push("/(app/)/upload")}
+              >
+                <Feather name="plus" size={16} color="#FFFFFF" />
+                <Text style={styles.newTripBtnText}>New</Text>
+              </TouchableOpacity>
+            </View>
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No trips yet</Text>
+              <Feather
+                name="map"
+                size={48}
+                color="#334155"
+                style={{ marginBottom: 16 }}
+              />
+              <Text style={styles.emptyTitle}>No upcoming trips</Text>
               <Text style={styles.emptySubtitle}>
-                Upload your first flight ticket to get started
+                Add a flight ticket to let your AI assistant generate your
+                travel guide.
               </Text>
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={() => router.push("/(app/)/upload")}
-              >
-                <Text style={styles.emptyButtonText}>Upload Ticket</Text>
-              </TouchableOpacity>
             </View>
           }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.tripCard}
+              activeOpacity={0.7}
               onPress={() =>
                 router.push({
                   pathname: "/(app/)/trip/[id]",
@@ -122,24 +155,52 @@ export default function HomeScreen() {
                 })
               }
             >
+              <View style={styles.cardHeader}>
+                <View style={styles.dateBadge}>
+                  <Feather name="calendar" size={14} color="#818CF8" />
+                  <Text style={styles.dateText}>{item.departure_date}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => confirmDelete(item.id)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather name="trash-2" size={16} color="#475569" />
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.routeRow}>
-                <Text style={styles.code}>{item.from_code}</Text>
-                <Text style={styles.arrow}>→</Text>
-                <Text style={styles.code}>{item.to_code}</Text>
+                <View>
+                  <Text style={styles.airportCode}>{item.from_code}</Text>
+                  <Text style={styles.cityName}>{item.from_city}</Text>
+                </View>
+
+                <View style={styles.flightLineContainer}>
+                  <View style={styles.dashedLine} />
+                  <Feather
+                    name="send"
+                    size={16}
+                    color="#6366F1"
+                    style={{ marginHorizontal: 8 }}
+                  />
+                  <View style={styles.dashedLine} />
+                </View>
+
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.airportCode}>{item.to_code}</Text>
+                  <Text style={styles.cityName}>{item.to_city}</Text>
+                </View>
               </View>
-              <Text style={styles.routeCities}>
-                {item.from_city} to {item.to_city}
-              </Text>
-              <View style={styles.detailsRow}>
-                <Text style={styles.detailText}>{item.departure_date}</Text>
-                <Text style={styles.detailText}>
+
+              <View style={styles.cardFooter}>
+                <Text style={styles.legText}>
                   {item.all_flights?.length}{" "}
-                  {item.all_flights?.length === 1 ? "flight" : "flights"}
+                  {item.all_flights?.length === 1 ? "leg" : "legs"}
                 </Text>
+                <View style={styles.viewDetailsBtn}>
+                  <Text style={styles.viewDetailsText}>View Guide</Text>
+                  <Feather name="chevron-right" size={16} color="#6366F1" />
+                </View>
               </View>
-              <Text style={styles.routeOverview} numberOfLines={1}>
-                {item.route_overview}
-              </Text>
             </TouchableOpacity>
           )}
         />
@@ -149,137 +210,129 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F172A",
-  },
+  container: { flex: 1, backgroundColor: "#0F172A" },
+  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
-  greeting: {
-    fontSize: 13,
-    color: "#94A3B8",
-  },
+  greeting: { fontSize: 14, color: "#94A3B8", marginBottom: 2 },
   name: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 28,
+    fontWeight: "800",
     color: "#FFFFFF",
     textTransform: "capitalize",
+    letterSpacing: -0.5,
   },
-  headerActions: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  uploadButton: {
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  uploadButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  logoutText: {
-    color: "#94A3B8",
-    fontSize: 13,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-  },
-  loadingText: {
-    color: "#94A3B8",
-    fontSize: 14,
-  },
-  listContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  tripCard: {
+  headerActions: { flexDirection: "row", alignItems: "center" },
+  iconBtn: {
+    padding: 8,
     backgroundColor: "#1E293B",
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#334155",
-    gap: 8,
   },
-  routeRow: {
+
+  listContainer: { paddingHorizontal: 24, paddingBottom: 40 },
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  sectionTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
+  newTripBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    backgroundColor: "#6366F1",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
   },
-  code: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  arrow: {
-    fontSize: 18,
-    color: "#6366F1",
-  },
-  routeCities: {
-    fontSize: 13,
-    color: "#94A3B8",
-    marginTop: -4,
-  },
-  detailsRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginTop: 4,
-  },
-  detailText: {
-    fontSize: 13,
-    color: "#64748B",
-  },
-  routeOverview: {
-    fontSize: 12,
-    color: "#475569",
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: "center",
-    marginTop: 80,
-    gap: 12,
-  },
+  newTripBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },
+
+  emptyState: { alignItems: "center", marginTop: 80, paddingHorizontal: 20 },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#FFFFFF",
+    fontWeight: "700",
+    color: "#E2E8F0",
+    marginBottom: 8,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: "#94A3B8",
+    fontSize: 15,
+    color: "#64748B",
     textAlign: "center",
     lineHeight: 22,
   },
-  emptyButton: {
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+
+  tripCard: {
+    backgroundColor: "#1E293B",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  dateBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
-    marginTop: 8,
   },
-  emptyButtonText: {
+  dateText: { color: "#818CF8", fontSize: 13, fontWeight: "600" },
+
+  routeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  airportCode: {
+    fontSize: 32,
+    fontWeight: "800",
     color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
+    letterSpacing: 1,
   },
+  cityName: { fontSize: 13, color: "#94A3B8", marginTop: 4 },
+
+  flightLineContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  dashedLine: {
+    flex: 1,
+    height: 1,
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderStyle: "dashed",
+  },
+
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#334155",
+    paddingTop: 16,
+  },
+  legText: { color: "#64748B", fontSize: 14, fontWeight: "500" },
+  viewDetailsBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  viewDetailsText: { color: "#6366F1", fontSize: 14, fontWeight: "700" },
 });

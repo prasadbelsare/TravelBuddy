@@ -29,30 +29,23 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { question, flights, conversationHistory, access_token } = body;
 
-    console.log("1. access_token exists:", !!access_token);
-    console.log("2. question:", question?.substring(0, 50));
-    console.log("3. flights count:", flights?.length ?? "MISSING");
-
     if (!access_token) throw new Error("Missing access_token");
     if (!question || !flights) throw new Error("Missing question or flights");
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: `Bearer ${access_token}` } } }
+      { global: { headers: { Authorization: `Bearer ${access_token}` } } },
     );
 
     const {
       data: { user },
       error: authError,
-    } = await supabaseClient.auth.getUser();
-
-    console.log("4. User:", user?.id ?? "NULL");
+    } = await supabaseClient.auth.getUser(access_token);
 
     if (authError || !user) throw new Error("Unauthorized");
 
     const { success, remaining } = await ratelimit.limit(user.id);
-    console.log("5. Rate limit success:", success, "remaining:", remaining);
 
     if (!success) {
       return new Response(
@@ -63,14 +56,14 @@ Deno.serve(async (req) => {
         {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
     const flightContext = flights
       .map(
         (f: any, i: number) =>
-          `Flight ${i + 1}: ${f.flight_number} from ${f.from} (${f.from_code}) to ${f.to} (${f.to_code}) on ${f.date} at ${f.departure_time}`
+          `Flight ${i + 1}: ${f.flight_number} from ${f.from} (${f.from_code}) to ${f.to} (${f.to_code}) on ${f.date} at ${f.departure_time}`,
       )
       .join("\n");
 
@@ -102,11 +95,10 @@ Be concise, friendly and specific to this journey. If you do not know something 
           temperature: 0.5,
           max_tokens: 1024,
         }),
-      }
+      },
     );
 
     const groqData = await groqResponse.json();
-    console.log("6. Groq status:", groqResponse.status);
 
     if (!groqResponse.ok) {
       throw new Error(groqData.error?.message || "Groq API error");
@@ -120,7 +112,7 @@ Be concise, friendly and specific to this journey. If you do not know something 
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error: any) {
     console.log("ERROR:", error.message);

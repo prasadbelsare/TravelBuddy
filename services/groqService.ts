@@ -15,7 +15,6 @@ export const groqService = {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) throw new Error("Not authenticated");
-    console.log("session.access_token", session.access_token);
     const { data, error } = await supabase.functions.invoke("extract-ticket", {
       body: {
         image_base64: base64,
@@ -62,6 +61,48 @@ export const groqService = {
       .replace(/```/g, "")
       .trim();
     return JSON.parse(cleaned);
+  },
+
+  async fetchTravelNews(flights: FlightDetails[]): Promise<string[]> {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const locations = Array.from(
+        new Set(
+          flights.flatMap((f) => [
+            `${f.from} (${f.from_code} airport)`,
+            `${f.to} (${f.to_code} airport)`,
+          ]),
+        ),
+      );
+
+      const { data, error } = await supabase.functions.invoke(
+        "fetch-travel-news",
+        {
+          body: {
+            locations,
+            access_token: session.access_token,
+          },
+        },
+      );
+
+      if (error) {
+        console.log("News fetch error:", error.message);
+        return [];
+      }
+      if (data?.error) {
+        console.log("News fetch backend error:", data.error);
+        return [];
+      }
+
+      return data?.news_summary || [];
+    } catch (err) {
+      console.log("Unexpected news fetch error:", err);
+      return [];
+    }
   },
 
   async chat(

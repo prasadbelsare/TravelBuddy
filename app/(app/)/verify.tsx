@@ -1,5 +1,7 @@
+import { AccordionItem } from "@/components/AccordionItem";
 import { groqService } from "@/services/groqService";
 import { FlightDetails } from "@/types";
+import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -18,17 +20,20 @@ export default function VerifyScreen() {
   const { base64, mimeType } = useLocalSearchParams();
 
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting] = useState(false);
   const [error, setError] = useState("");
   const [flights, setFlights] = useState<FlightDetails[]>([]);
 
   useEffect(() => {
+    if (!base64) {
+      Alert.alert("Error", "No ticket provided to extract.");
+      router.back();
+      return;
+    }
     extractTicketDetails();
-  }, []);
+  }, [base64]);
 
   const extractTicketDetails = async () => {
-    setLoading(true);
-    setError("");
     try {
       const extracted = await groqService.extractFlightDetails(
         base64 as string,
@@ -36,8 +41,9 @@ export default function VerifyScreen() {
       );
       setFlights(extracted);
     } catch (err) {
-      console.log("Extract error:", err);
-      setError("Could not read ticket. Please fill in the details manually.");
+      setError(
+        "Could not read ticket fully. Please verify and correct the details below.",
+      );
       setFlights([emptyFlight()]);
     } finally {
       setLoading(false);
@@ -70,31 +76,24 @@ export default function VerifyScreen() {
     );
   };
 
-  const addFlight = () => {
-    setFlights((prev) => [...prev, emptyFlight()]);
-  };
-
+  const addFlight = () => setFlights((prev) => [...prev, emptyFlight()]);
   const removeFlight = (index: number) => {
-    if (flights.length === 1) return;
-    setFlights((prev) => prev.filter((_, i) => i !== index));
+    if (flights.length > 1)
+      setFlights((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = () => {
     const firstFlight = flights[0];
-    if (!firstFlight.flight_number || !firstFlight.from || !firstFlight.to) {
+    if (!firstFlight.from || !firstFlight.to || !firstFlight.flight_number) {
       Alert.alert(
         "Missing details",
-        "Please fill in at least the flight number, origin and destination for Flight 1",
+        "Please enter at least an origin, destination, and flight number.",
       );
       return;
     }
-
     router.push({
       pathname: "/(app/)/trip/[id]",
-      params: {
-        id: "new",
-        allFlights: JSON.stringify(flights),
-      },
+      params: { id: "new", allFlights: JSON.stringify(flights) },
     });
   };
 
@@ -102,10 +101,7 @@ export default function VerifyScreen() {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6366F1" />
-        <Text style={styles.loadingTitle}>Reading your ticket...</Text>
-        <Text style={styles.loadingSubtitle}>
-          Extracting your flight details
-        </Text>
+        <Text style={styles.loadingTitle}>Reading ticket...</Text>
       </SafeAreaView>
     );
   }
@@ -113,171 +109,104 @@ export default function VerifyScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backButton}>Back</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+          <Feather name="arrow-left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Verify Details</Text>
-        <View style={{ width: 60 }} />
+        <View style={styles.iconBtn} />
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.instruction}>
-          Review and correct your flight details before generating instructions.
-        </Text>
-
         {error ? (
           <View style={styles.warningBox}>
+            <Feather name="alert-triangle" size={16} color="#FDE68A" />
             <Text style={styles.warningText}>{error}</Text>
           </View>
         ) : (
-          <View style={styles.successBox}>
-            <Text style={styles.successText}>
-              Details extracted. Please verify below.
+          <View style={styles.infoBox}>
+            <Feather name="check-circle" size={16} color="#86EFAC" />
+            <Text style={styles.infoText}>
+              Ticket extracted successfully. Please verify.
             </Text>
           </View>
         )}
 
         {flights.map((flight, index) => (
-          <View key={index} style={styles.flightSection}>
-            <View style={styles.flightSectionHeader}>
-              <Text style={styles.flightSectionTitle}>Flight {index + 1}</Text>
-              {flights.length > 1 && (
-                <TouchableOpacity onPress={() => removeFlight(index)}>
-                  <Text style={styles.removeButton}>Remove</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+          <AccordionItem
+            key={index}
+            title={`Leg ${index + 1}: ${flight.from_code || "Unknown"} → ${flight.to_code || "Unknown"}`}
+            icon="send"
+            defaultExpanded={index === 0}
+          >
+            {flights.length > 1 && (
+              <TouchableOpacity
+                style={styles.deleteLegBtn}
+                onPress={() => removeFlight(index)}
+              >
+                <Feather name="trash-2" size={14} color="#EF4444" />
+                <Text style={styles.deleteLegText}>Remove Leg</Text>
+              </TouchableOpacity>
+            )}
 
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <InputField
+            <View style={styles.formGrid}>
+              <View style={styles.row}>
+                <FloatingInput
                   label="From City"
                   value={flight.from}
                   onChangeText={(v) => updateFlight(index, "from", v)}
-                  placeholder="Mumbai"
                 />
-              </View>
-              <View style={styles.rowItem}>
-                <InputField
+                <FloatingInput
                   label="To City"
                   value={flight.to}
                   onChangeText={(v) => updateFlight(index, "to", v)}
-                  placeholder="Dubai"
                 />
               </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <InputField
+              <View style={styles.row}>
+                <FloatingInput
                   label="From Code"
                   value={flight.from_code}
                   onChangeText={(v) => updateFlight(index, "from_code", v)}
-                  placeholder="BOM"
                 />
-              </View>
-              <View style={styles.rowItem}>
-                <InputField
+                <FloatingInput
                   label="To Code"
                   value={flight.to_code}
                   onChangeText={(v) => updateFlight(index, "to_code", v)}
-                  placeholder="DXB"
                 />
               </View>
-            </View>
-
-            <InputField
-              label="Flight Number"
-              value={flight.flight_number}
-              onChangeText={(v) => updateFlight(index, "flight_number", v)}
-              placeholder="AI 302"
-            />
-
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <InputField
+              <View style={styles.row}>
+                <FloatingInput
+                  label="Flight No."
+                  value={flight.flight_number}
+                  onChangeText={(v) => updateFlight(index, "flight_number", v)}
+                />
+                <FloatingInput
                   label="Date"
                   value={flight.date}
                   onChangeText={(v) => updateFlight(index, "date", v)}
-                  placeholder="15 Mar 2024"
                 />
               </View>
-              <View style={styles.rowItem}>
-                <InputField
-                  label="Seat"
-                  value={flight.seat}
-                  onChangeText={(v) => updateFlight(index, "seat", v)}
-                  placeholder="24A"
-                />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <InputField
-                  label="Departure"
+              <View style={styles.row}>
+                <FloatingInput
+                  label="Departs"
                   value={flight.departure_time}
                   onChangeText={(v) => updateFlight(index, "departure_time", v)}
-                  placeholder="14:30"
                 />
-              </View>
-              <View style={styles.rowItem}>
-                <InputField
-                  label="Arrival"
+                <FloatingInput
+                  label="Arrives"
                   value={flight.arrival_time}
                   onChangeText={(v) => updateFlight(index, "arrival_time", v)}
-                  placeholder="16:45"
                 />
               </View>
             </View>
-
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <InputField
-                  label="Terminal"
-                  value={flight.terminal}
-                  onChangeText={(v) => updateFlight(index, "terminal", v)}
-                  placeholder="T2"
-                />
-              </View>
-              <View style={styles.rowItem}>
-                <InputField
-                  label="Gate"
-                  value={flight.gate}
-                  onChangeText={(v) => updateFlight(index, "gate", v)}
-                  placeholder="B12"
-                />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <InputField
-                  label="Class"
-                  value={flight.class}
-                  onChangeText={(v) => updateFlight(index, "class", v)}
-                  placeholder="Economy"
-                />
-              </View>
-              <View style={styles.rowItem}>
-                <InputField
-                  label="Baggage"
-                  value={flight.baggage_allowance}
-                  onChangeText={(v) =>
-                    updateFlight(index, "baggage_allowance", v)
-                  }
-                  placeholder="25kg"
-                />
-              </View>
-            </View>
-          </View>
+          </AccordionItem>
         ))}
 
         <TouchableOpacity style={styles.addFlightButton} onPress={addFlight}>
-          <Text style={styles.addFlightText}>+ Add another flight leg</Text>
+          <Feather name="plus" size={18} color="#6366F1" />
+          <Text style={styles.addFlightText}>Add connecting flight</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -290,9 +219,7 @@ export default function VerifyScreen() {
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitButtonText}>
-              Confirm and Generate Instructions
-            </Text>
+            <Text style={styles.submitButtonText}>Generate Itinerary</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -300,26 +227,33 @@ export default function VerifyScreen() {
   );
 }
 
-function InputField({
+// --- NEW FLOATING INPUT COMPONENT ---
+function FloatingInput({
   label,
   value,
   onChangeText,
-  placeholder,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
-  placeholder: string;
 }) {
+  const [isFocused, setIsFocused] = useState(false);
+  const isActive = isFocused || value.length > 0;
+
   return (
-    <View style={styles.inputGroup}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.inputWrapper, isActive && styles.inputWrapperActive]}>
+      <Text
+        style={[styles.floatingLabel, isActive && styles.floatingLabelActive]}
+      >
+        {label}
+      </Text>
       <TextInput
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#475569"
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        placeholderTextColor="transparent"
       />
     </View>
   );
@@ -333,146 +267,112 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  loadingTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  loadingSubtitle: {
-    fontSize: 14,
-    color: "#94A3B8",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#0F172A",
-  },
+  loadingTitle: { fontSize: 18, fontWeight: "600", color: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: "#0F172A" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    padding: 24,
   },
-  backButton: {
-    color: "#6366F1",
-    fontSize: 16,
-    width: 60,
-  },
-  headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    gap: 16,
-  },
-  instruction: {
-    fontSize: 14,
-    color: "#94A3B8",
-    lineHeight: 22,
-  },
+  iconBtn: { width: 40, height: 40, justifyContent: "center" },
+  headerTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "600" },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 40, gap: 16 },
+
   warningBox: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#422006",
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
+    gap: 10,
     borderWidth: 1,
     borderColor: "#854D0E",
   },
-  warningText: {
-    color: "#FDE68A",
-    fontSize: 13,
-  },
-  successBox: {
+  warningText: { color: "#FDE68A", fontSize: 13, flex: 1 },
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#052E16",
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
+    gap: 10,
     borderWidth: 1,
     borderColor: "#166534",
   },
-  successText: {
-    color: "#86EFAC",
-    fontSize: 13,
+  infoText: { color: "#86EFAC", fontSize: 13, flex: 1 },
+
+  deleteLegBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-end",
+    marginBottom: 16,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  flightSection: {
-    backgroundColor: "#1E293B",
-    borderRadius: 14,
-    padding: 16,
+  deleteLegText: { color: "#EF4444", fontSize: 12, fontWeight: "600" },
+
+  formGrid: { gap: 12 },
+  row: { flexDirection: "row", gap: 12 },
+
+  inputWrapper: {
+    flex: 1,
+    height: 56,
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#334155",
-    gap: 12,
+    paddingHorizontal: 16,
+    justifyContent: "center",
   },
-  flightSectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+  inputWrapperActive: {
+    borderColor: "#6366F1",
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
   },
-  flightSectionTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
+  floatingLabel: {
+    position: "absolute",
+    left: 16,
+    top: 18,
+    color: "#64748B",
+    fontSize: 14,
   },
-  removeButton: {
-    color: "#EF4444",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  rowItem: {
-    flex: 1,
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  label: {
-    color: "#CBD5E1",
-    fontSize: 13,
-    fontWeight: "500",
+  floatingLabelActive: {
+    top: 8,
+    fontSize: 10,
+    color: "#818CF8",
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
   input: {
-    backgroundColor: "#0F172A",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: "#334155",
+    flex: 1,
     color: "#FFFFFF",
+    fontSize: 16,
+    paddingTop: 16,
+    outlineStyle: "none" as any,
   },
+
   addFlightButton: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
     borderWidth: 1,
     borderColor: "#334155",
     borderStyle: "dashed",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    alignItems: "center",
   },
-  addFlightText: {
-    color: "#6366F1",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 12,
-  },
+  addFlightText: { color: "#818CF8", fontSize: 15, fontWeight: "600" },
+
+  footer: { padding: 24, paddingTop: 12 },
   submitButton: {
     backgroundColor: "#6366F1",
-    paddingVertical: 16,
-    borderRadius: 14,
+    paddingVertical: 18,
+    borderRadius: 16,
     alignItems: "center",
   },
-  submitButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  submitButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
 });

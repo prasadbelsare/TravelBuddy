@@ -29,32 +29,24 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { image_base64, mimeType, access_token } = body;
 
-    console.log("1. access_token exists:", !!access_token);
-    console.log("2. image_base64 exists:", !!image_base64);
-    console.log("3. mimeType:", mimeType);
-
     if (!access_token) throw new Error("Missing access_token");
-    if (!image_base64 || !mimeType) throw new Error("Missing image_base64 or mimeType");
+    if (!image_base64 || !mimeType)
+      throw new Error("Missing image_base64 or mimeType");
 
     // Authenticate user using token from body
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!
-      { global: { headers: { Authorization: `Bearer ${access_token}` } } }
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: `Bearer ${access_token}` } } },
     );
-const { data, error } = await supabaseClient.auth.getSession();
-console.log('data',data);
     const {
       data: { user },
       error: authError,
-    } = await supabaseClient.auth.getUser();
-    console.log("4. User:", user?.id ?? "NULL", "Auth error:", authError?.message ?? "NONE");
+    } = await supabaseClient.auth.getUser(access_token);
 
     if (authError || !user) throw new Error("Unauthorized");
 
-    // Check rate limit — 3 ticket scans per day per user
     const { success } = await ratelimit.limit(user.id);
-    console.log("5. Rate limit success:", success);
 
     if (!success) {
       return new Response(
@@ -65,7 +57,7 @@ console.log('data',data);
         {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -117,11 +109,10 @@ For from_code and to_code use standard IATA airport codes.`,
           temperature: 0.1,
           max_tokens: 4096,
         }),
-      }
+      },
     );
 
     const groqData = await groqResponse.json();
-    console.log("6. Groq status:", groqResponse.status);
 
     if (!groqResponse.ok) {
       throw new Error(groqData.error?.message || "Groq API error");
