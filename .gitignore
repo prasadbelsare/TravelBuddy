@@ -45,3 +45,5 @@ app-example
 .env.local
 
 supabase/.temp/
+.vercel
+.env*.local
