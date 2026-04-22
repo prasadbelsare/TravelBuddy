@@ -34,8 +34,7 @@ export default function OnboardingScreen() {
           </View>
           <Text style={styles.title}>Travel Buddy</Text>
           <Text style={styles.subtitle}>
-            Your intelligent companion for door-to-door journeys. Plan, track,
-            and navigate with ease.
+            Your intelligent companion for door-to-door journeys.
           </Text>
         </View>
 

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -62,29 +63,43 @@ export default function HomeScreen() {
     }
   };
 
-  const confirmDelete = (tripId: string) => {
-    Alert.alert(
-      "Delete Itinerary",
-      "Are you sure you want to remove this trip?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await tripService.deleteTrip(tripId);
-              setTrips((prev) => prev.filter((t) => t.id !== tripId));
-            } catch (err) {
-              Alert.alert(
-                "Error",
-                "Could not delete flight. Please try again.",
-              );
-            }
+  const confirmDelete = async (tripId: string) => {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        "Are you sure you want to remove this trip?",
+      );
+      if (confirmed) {
+        try {
+          await tripService.deleteTrip(tripId);
+          setTrips((prev) => prev.filter((t) => t.id !== tripId));
+        } catch (err) {
+          window.alert("Could not delete flight. Please try again.");
+        }
+      }
+    } else {
+      Alert.alert(
+        "Delete Itinerary",
+        "Are you sure you want to remove this trip?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await tripService.deleteTrip(tripId);
+                setTrips((prev) => prev.filter((t) => t.id !== tripId));
+              } catch (err) {
+                Alert.alert(
+                  "Error",
+                  "Could not delete flight. Please try again.",
+                );
+              }
+            },
           },
-        },
-      ],
-    );
+        ],
+      );
+    }
   };
 
   return (

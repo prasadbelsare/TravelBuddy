@@ -1,9 +1,20 @@
+import { FontAwesome, Ionicons } from "@expo/vector-icons"; // Ensure you import the specific families you used
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet, View } from "react-native";
 import { AuthProvider } from "../context/AuthContext";
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    ...FontAwesome.font,
+    ...Ionicons.font,
+  });
+
+  if (!fontsLoaded) {
+    return null; // Halts rendering until fonts are loaded
+  }
+
   const AppStack = (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
